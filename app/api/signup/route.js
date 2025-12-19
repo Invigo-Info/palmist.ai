@@ -3,10 +3,12 @@ import nodemailer from 'nodemailer'
 import fs from 'fs'
 import path from 'path'
 
-const DATA_FILE = path.join(process.cwd(), 'data', 'signups.json')
+// Use /tmp on serverless platforms (like Vercel) where the repo is read-only
+const BASE_DATA_DIR = process.env.VERCEL ? '/tmp/palmist-data' : path.join(process.cwd(), 'data')
+const DATA_FILE = path.join(BASE_DATA_DIR, 'signups.json')
 
 function ensureDataDir() {
-  const dataDir = path.join(process.cwd(), 'data')
+  const dataDir = path.dirname(DATA_FILE)
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true })
   }
@@ -26,8 +28,13 @@ function getSignups() {
 }
 
 function saveSignups(data) {
-  ensureDataDir()
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
+  try {
+    ensureDataDir()
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
+  } catch (error) {
+    // On serverless, writes may fail; log and continue without blocking signup
+    console.error('Error saving signups (non-blocking):', error)
+  }
 }
 
 const smtpHost = process.env.SMTP_HOST
