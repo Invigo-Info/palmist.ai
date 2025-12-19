@@ -35,7 +35,7 @@ const smtpPort = Number(process.env.SMTP_PORT) || 587
 const smtpUser = process.env.SMTP_USER
 const smtpPass = process.env.SMTP_PASS
 const smtpSecureEnv = process.env.SMTP_SECURE
-const adminEmail = process.env.ADMIN_EMAIL || 'john.mayer0206@gmail.com'
+const adminEmail = process.env.ADMIN_EMAIL || 'keshav.amanile@gmail.com'
 const fromAddress = process.env.FROM_EMAIL || smtpUser || 'Palmist AI <no-reply@example.com>'
 
 function getTransporter() {
