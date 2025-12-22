@@ -3,6 +3,8 @@ import nodemailer from 'nodemailer'
 import fs from 'fs'
 import path from 'path'
 
+const DEFAULT_SIGNUPS = { count: 28700212, emails: [] }
+
 // Use /tmp on serverless platforms (like Vercel) where the repo is read-only
 const BASE_DATA_DIR = process.env.VERCEL ? '/tmp/palmist-data' : path.join(process.cwd(), 'data')
 const DATA_FILE = path.join(BASE_DATA_DIR, 'signups.json')
@@ -24,7 +26,7 @@ function getSignups() {
   } catch (error) {
     console.error('Error reading signups:', error)
   }
-  return { count: 28700212, emails: [] }
+  return { ...DEFAULT_SIGNUPS }
 }
 
 function saveSignups(data) {
@@ -74,69 +76,70 @@ export async function POST(request) {
       )
     }
 
+    const normalizedEmail = email.trim().toLowerCase()
     const signups = getSignups()
 
-    if (signups.emails.includes(email.toLowerCase())) {
+    if (signups.emails.includes(normalizedEmail)) {
       return NextResponse.json(
         { error: 'This email is already registered', count: signups.count },
         { status: 400 }
       )
     }
 
-    signups.emails.push(email.toLowerCase())
+    signups.emails.push(normalizedEmail)
     signups.count += 1
     saveSignups(signups)
+
+    let emailStatus = 'skipped'
 
     try {
       const transporter = getTransporter()
 
       if (!transporter) {
-        return NextResponse.json(
-          { error: 'Email service not configured. Set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS on the server.' },
-          { status: 500 }
-        )
+        console.warn('SMTP not configured. Skipping notification emails.')
+      } else {
+        await Promise.all([
+          transporter.sendMail({
+            from: fromAddress,
+            to: normalizedEmail,
+            subject: 'Welcome to AI Palm Reader',
+            html: `
+              <div style="font-family:Inter,Arial,sans-serif;max-width:640px;margin:0 auto;padding:32px 24px;line-height:1.6;background:#fdfdfb;color:#0c0c0c;">
+                <p style="font-size:18px;font-weight:600;margin:0 0 12px;">Welcome aboard!</p>
+                <p style="margin:0 0 12px;">Thanks for joining AI Palm Reader. You'll be first to get palm-reading insights as we roll them out.</p>
+                <p style="margin:0 0 12px;">We'll email you when your reading is ready. Stay tuned.</p>
+                <p style="margin:18px 0 0;font-size:14px;color:#6b7280;">AI Palm Reader Team</p>
+              </div>
+            `
+          }),
+          transporter.sendMail({
+            from: fromAddress,
+            to: adminEmail,
+            subject: `New Submission: ${normalizedEmail}`,
+            html: `
+              <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px 20px;line-height:1.5;background:#ffffff;color:#111827;border:1px solid #e5e7eb;border-radius:12px;">
+                <p style="font-size:18px;font-weight:600;margin:0 0 12px;">You've just received a new submission.</p>
+                <p style="margin:0 0 8px;"><strong>Email:</strong> ${normalizedEmail}</p>
+                <p style="margin:0 0 8px;"><strong>Total signups:</strong> ${signups.count.toLocaleString()}</p>
+                <p style="margin:0;color:#6b7280;font-size:13px;">${new Date().toISOString()}</p>
+              </div>
+            `
+          })
+        ])
+        emailStatus = 'sent'
+        console.log('Emails sent via SMTP')
       }
-
-      await Promise.all([
-        transporter.sendMail({
-          from: fromAddress,
-          to: email,
-          subject: 'Welcome to AI Palm Reader',
-          html: `
-            <div style="font-family:Inter,Arial,sans-serif;max-width:640px;margin:0 auto;padding:32px 24px;line-height:1.6;background:#fdfdfb;color:#0c0c0c;">
-              <p style="font-size:18px;font-weight:600;margin:0 0 12px;">Welcome aboard!</p>
-              <p style="margin:0 0 12px;">Thanks for joining AI Palm Reader. You'll be first to get palm-reading insights as we roll them out.</p>
-              <p style="margin:0 0 12px;">We'll email you when your reading is ready. Stay tuned.</p>
-              <p style="margin:18px 0 0;font-size:14px;color:#6b7280;">AI Palm Reader Team</p>
-            </div>
-          `
-        }),
-        transporter.sendMail({
-          from: fromAddress,
-          to: adminEmail,
-          subject: `New Submission: ${email}`,
-          html: `
-            <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px 20px;line-height:1.5;background:#ffffff;color:#111827;border:1px solid #e5e7eb;border-radius:12px;">
-              <p style="font-size:18px;font-weight:600;margin:0 0 12px;">You’ve just received a new submission.</p>
-              <p style="margin:0 0 8px;"><strong>Email:</strong> ${email}</p>
-              <p style="margin:0 0 8px;"><strong>Total signups:</strong> ${signups.count.toLocaleString()}</p>
-              <p style="margin:0;color:#6b7280;font-size:13px;">${new Date().toISOString()}</p>
-            </div>
-          `
-        })
-      ])
-      console.log('Emails sent via SMTP')
     } catch (emailError) {
+      emailStatus = 'failed'
       console.error('Email sending failed:', emailError?.response?.data || emailError.message)
-      return NextResponse.json(
-        { error: 'Failed to send email', detail: emailError?.response?.data || emailError.message },
-        { status: 500 }
-      )
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Successfully signed up!',
+      message: emailStatus === 'sent'
+        ? 'Successfully signed up! Check your inbox.'
+        : 'Signup saved. Email notifications were skipped.',
+      emailStatus,
       count: signups.count
     })
 
