@@ -1,58 +1,6 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import fs from 'fs'
-import path from 'path'
-
-const DEFAULT_SIGNUPS = { count: 28700212, emails: [] }
-
-function normalizeSignups(data = {}) {
-  const emails = Array.isArray(data.emails)
-    ? data.emails.filter(Boolean)
-    : []
-
-  const rawCount = Number(data.count)
-  const hasValidCount = Number.isFinite(rawCount)
-  const baseline = DEFAULT_SIGNUPS.count + emails.length
-
-  return {
-    count: hasValidCount ? Math.max(rawCount, baseline) : baseline,
-    emails
-  }
-}
-
-// Use /tmp on serverless platforms (like Vercel) where the repo is read-only
-const BASE_DATA_DIR = process.env.VERCEL ? '/tmp/palmist-data' : path.join(process.cwd(), 'data')
-const DATA_FILE = path.join(BASE_DATA_DIR, 'signups.json')
-
-function ensureDataDir() {
-  const dataDir = path.dirname(DATA_FILE)
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-}
-
-function getSignups() {
-  ensureDataDir()
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8')
-      return normalizeSignups(JSON.parse(data))
-    }
-  } catch (error) {
-    console.error('Error reading signups:', error)
-  }
-  return normalizeSignups(DEFAULT_SIGNUPS)
-}
-
-function saveSignups(data) {
-  try {
-    ensureDataDir()
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2))
-  } catch (error) {
-    // On serverless, writes may fail; log and continue without blocking signup
-    console.error('Error saving signups (non-blocking):', error)
-  }
-}
+import { getSignups, saveSignups, DEFAULT_SIGNUPS } from '../signupsStore'
 
 const smtpHost = process.env.SMTP_HOST
 const smtpPort = Number(process.env.SMTP_PORT) || 587
@@ -92,7 +40,7 @@ export async function POST(request) {
     }
 
     const normalizedEmail = email.trim().toLowerCase()
-    const signups = getSignups()
+    const signups = await getSignups()
 
     if (signups.emails.includes(normalizedEmail)) {
       return NextResponse.json(
@@ -103,7 +51,7 @@ export async function POST(request) {
 
     signups.emails.push(normalizedEmail)
     signups.count += 1
-    saveSignups(signups)
+    await saveSignups(signups)
 
     let emailStatus = 'skipped'
 
@@ -161,7 +109,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(
-      { error: 'Failed to process signup. Please try again.' },
+      { error: 'Failed to process signup. Please try again.', count: DEFAULT_SIGNUPS.count },
       { status: 500 }
     )
   }
