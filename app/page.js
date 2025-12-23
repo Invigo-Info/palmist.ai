@@ -24,7 +24,7 @@ export default function Home() {
     try {
       const res = await fetch('/api/count')
       const data = await res.json()
-      if (data.count) {
+      if (typeof data.count === 'number') {
         setSignupCount(data.count)
       }
     } catch (error) {

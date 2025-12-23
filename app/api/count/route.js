@@ -2,6 +2,23 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
+const DEFAULT_SIGNUPS = { count: 28700212, emails: [] }
+
+function normalizeSignups(data = {}) {
+  const emails = Array.isArray(data.emails)
+    ? data.emails.filter(Boolean)
+    : []
+
+  const rawCount = Number(data.count)
+  const hasValidCount = Number.isFinite(rawCount)
+  const baseline = DEFAULT_SIGNUPS.count + emails.length
+
+  return {
+    count: hasValidCount ? Math.max(rawCount, baseline) : baseline,
+    emails
+  }
+}
+
 // Use /tmp on serverless platforms (like Vercel) where the repo is read-only
 const BASE_DATA_DIR = process.env.VERCEL ? '/tmp/palmist-data' : path.join(process.cwd(), 'data')
 const DATA_FILE = path.join(BASE_DATA_DIR, 'signups.json')
@@ -19,13 +36,13 @@ function getSignups() {
   try {
     if (fs.existsSync(DATA_FILE)) {
       const data = fs.readFileSync(DATA_FILE, 'utf8')
-      return JSON.parse(data)
+      return normalizeSignups(JSON.parse(data))
     }
   } catch (error) {
     console.error('Error reading signups:', error)
   }
   // Default starting count (similar to original site)
-  return { count: 28700212, emails: [] }
+  return normalizeSignups(DEFAULT_SIGNUPS)
 }
 
 export async function GET() {
