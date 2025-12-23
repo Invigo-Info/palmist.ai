@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-import { getSignups, saveSignups, DEFAULT_SIGNUPS } from '../signupsStore'
+import { getSignups, saveSignups, getDefaultCount } from '../signupsStore'
 
 const smtpHost = process.env.SMTP_HOST
 const smtpPort = Number(process.env.SMTP_PORT) || 587
@@ -109,7 +109,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(
-      { error: 'Failed to process signup. Please try again.', count: DEFAULT_SIGNUPS.count },
+      { error: 'Failed to process signup. Please try again.', count: getDefaultCount() },
       { status: 500 }
     )
   }

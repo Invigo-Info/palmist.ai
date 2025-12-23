@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getSignups, DEFAULT_SIGNUPS } from '../signupsStore'
+import { getSignups, getDefaultCount } from '../signupsStore'
 
 export async function GET() {
   try {
@@ -12,7 +12,7 @@ export async function GET() {
   } catch (error) {
     console.error('Count error:', error)
     return NextResponse.json(
-      { error: 'Failed to get count', count: DEFAULT_SIGNUPS.count },
+      { error: 'Failed to get count', count: getDefaultCount() },
       { status: 500 }
     )
   }

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-export const DEFAULT_SIGNUPS = { count: 28700212, emails: [] }
+const FALLBACK_BASE_COUNT = 28700212
 
 const KV_KEY = 'signups'
 const kvUrl = process.env.KV_REST_API_URL
@@ -10,12 +10,22 @@ const kvToken = process.env.KV_REST_API_TOKEN
 const BASE_DATA_DIR = process.env.VERCEL ? '/tmp/palmist-data' : path.join(process.cwd(), 'data')
 const DATA_FILE = path.join(BASE_DATA_DIR, 'signups.json')
 
+function getBaseCount() {
+  const envBase = process.env.BASE_SIGNUP_COUNT || process.env.NEXT_PUBLIC_BASE_SIGNUP_COUNT
+  const parsed = Number(envBase)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : FALLBACK_BASE_COUNT
+}
+
+export function getDefaultSignups() {
+  return { count: getBaseCount(), emails: [] }
+}
+
 function normalizeSignups(data = {}) {
   const emails = Array.isArray(data.emails) ? data.emails.filter(Boolean) : []
 
   const rawCount = Number(data.count)
   const hasValidCount = Number.isFinite(rawCount)
-  const baseline = DEFAULT_SIGNUPS.count + emails.length
+  const baseline = getBaseCount() + emails.length
 
   return {
     count: hasValidCount ? Math.max(rawCount, baseline) : baseline,
@@ -40,7 +50,7 @@ function readFromFile() {
   } catch (error) {
     console.error('Error reading signups locally:', error)
   }
-  return normalizeSignups(DEFAULT_SIGNUPS)
+  return normalizeSignups(getDefaultSignups())
 }
 
 function writeToFile(data) {
@@ -122,4 +132,8 @@ export async function saveSignups(signups) {
   }
 
   return normalized
+}
+
+export function getDefaultCount() {
+  return getBaseCount()
 }
