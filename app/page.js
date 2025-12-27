@@ -22,7 +22,12 @@ export default function Home() {
 
   const fetchCount = async () => {
     try {
-      const res = await fetch('/api/count')
+      const res = await fetch('/api/count', {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      })
       const data = await res.json()
       if (typeof data.count === 'number') {
         setSignupCount(data.count)
